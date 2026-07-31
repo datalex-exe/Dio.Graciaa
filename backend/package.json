@@ -1,0 +1,29 @@
+{
+  "name": "dio-grace-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Multi-Building Apartment Material & Execution Tracking Portal",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "build": "npm install --prefix ../frontend --production=false && prisma generate && npm run build --prefix ../frontend",
+    "db:init": "npx prisma migrate dev --name init",
+    "db:generate": "prisma generate",
+    "db:seed": "node src/seed.js",
+    "db:studio": "npx prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.12.1",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0",
+    "prisma": "^5.12.1"
+  }
+}
