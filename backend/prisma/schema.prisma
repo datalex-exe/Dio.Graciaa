@@ -1,0 +1,283 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                String     @id @default(uuid())
+  email             String     @unique
+  passwordHash      String
+  name              String
+  role              String     // ROLE_A, ROLE_B, ROLE_C, ROLE_D
+  permittedProjects String     @default("")
+  createdAt         DateTime   @default(now())
+  orders            Order[]    @relation("CreatedBy")
+  auditLogs         AuditLog[]
+}
+
+model Order {
+  id                    String               @id @default(uuid())
+  orderNumber           String               @unique // e.g. ORD-2026-001
+  clientName            String               @default("")
+  siteAddress           String               @default("")
+  supervisorName        String               @default("")
+  totalApartmentsNeeded Int                  @default(0)
+  contractorId          String               @default("")
+  contractorName        String               @default("")
+  createdAt             DateTime             @default(now())
+  createdById           String
+  createdBy             User                 @relation("CreatedBy", fields: [createdById], references: [id])
+  buildings             Building[]
+  billingSetup          BillingSetup?
+  contractorBillLines ContractorBillLine[]
+  clientRABillLines   ClientRABillLine[]
+}
+
+model Building {
+  id                    String              @id @default(uuid())
+  orderId               String
+  order                 Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  name                  String
+  capacity              Int
+  siteName              String
+  reportDate            DateTime
+  materialWeight        Float               @default(0.3)
+  executionWeight       Float               @default(0.7)
+  goodThreshold         Float               @default(0.75)
+  excellentThreshold    Float               @default(0.9)
+  delayedDaysThreshold  Int                 @default(7)
+  criticalDaysThreshold Int                 @default(14)
+  createdAt             DateTime            @default(now())
+  apartments            Apartment[]
+  towerClientRates      TowerClientRate[]
+  clientRABillLines     ClientRABillLine[]
+}
+
+model Apartment {
+  id         String   @id @default(uuid())
+  buildingId String
+  building   Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  // Group 1 — Apartment & Product Details
+  srNo        Int
+  apartmentNo String?
+  floor       String?
+  priority    String   // High, Medium, Normal
+  kitchenQty  Int?
+  wardrobeQty Int?
+  vanityQty   Int?
+  doorQty     Int?
+
+  // Group 2 — Stage 1: Item-wise Material Received (0 or 1 for checkbox)
+  kitchenLowerCarcassInward       Int?
+  kitchenUpperCarcassInward       Int?
+  kitchenStoneInward              Int?
+  kitchenShutterInward            Int?
+  kitchenHardwareInward           Int?
+  kitchenApplianceInward          Int?
+  wardrobeCabinetInward           Int?
+  wardrobeShutterHardwareInward   Int?
+  vanityCabinetInward             Int?
+  vanityShutterHardwareInward     Int?
+  doorFrameHardwareInward         Int?
+
+  // Group 3 — Stage 2: Item-wise Execution/Installation (0 or 1 for checkbox)
+  kitchenLowerCarcassInstalled     Int?
+  kitchenUpperCarcassInstalled     Int?
+  kitchenStoneInstalled            Int?
+  kitchenShutterHardwareInstalled  Int?
+  kitchenApplianceInstalled        Int?
+  kitchenHandedOver                Int? // 0 or 1
+  wardrobeCabinetInstalled         Int?
+  wardrobeShutterHardwareInstalled Int?
+  wardrobeHandedOver               Int? // 0 or 1
+  vanityCabinetInstalled           Int?
+  vanityShutterHardwareInstalled   Int?
+  vanityHandedOver                 Int? // 0 or 1
+  doorFrameHardwareInstalled       Int?
+  doorHandedOver                   Int? // 0 or 1
+
+  // Group 4 — Planning, Responsibility & Remarks
+  plannedStart        DateTime?
+  plannedCompletion   DateTime?
+  actualStart         DateTime?
+  actualCompletion    DateTime?
+  supervisorName      String?
+  responsibleEngineer String?
+  contractor          String?
+  contractorName      String?
+  delayReason         String?
+  remarks             String?
+
+  // Group 5 — Automatic Analysis (calculated and cache-saved)
+  materialInwardPct     Float  @default(0.0)
+  kitchenCompletionPct  Float  @default(0.0)
+  wardrobeCompletionPct Float  @default(0.0)
+  vanityCompletionPct   Float  @default(0.0)
+  doorCompletionPct     Float  @default(0.0)
+  overallCompletionPct  Float  @default(0.0)
+  apartmentStatus       String @default("Not Started")
+  delayDays             Int    @default(0)
+  health                String @default("Watch")
+
+  // Group 6 — Quality Control Gate (values: "OK", "Not OK", or null/blank)
+  kitchenQC_VisibleScrews      String?
+  kitchenQC_Chipping           String?
+  kitchenQC_FillerMissing      String?
+  kitchenQC_Scratches          String?
+  kitchenQC_DrawersFunction    String?
+  kitchenQC_CutleryTray        String?
+  kitchenQC_DishDrainer        String?
+
+  wardrobeQC_VisibleScrews     String?
+  wardrobeQC_Chipping          String?
+  wardrobeQC_FillerMissing     String?
+  wardrobeQC_Scratches         String?
+  wardrobeQC_DrawersFunction   String?
+
+  vanityQC_VisibleScrews       String?
+  vanityQC_Chipping            String?
+  vanityQC_FillerMissing       String?
+  vanityQC_Scratches           String?
+  vanityQC_DrawersFunction     String?
+
+  doorQC_Chipping              String?
+  doorQC_Alignment             String?
+
+  // Group 7 — QC Approval & Handover Control
+  kitchenQCGate          String @default("N/A")
+  wardrobeQCGate         String @default("N/A")
+  vanityQCGate           String @default("N/A")
+  doorQCGate             String @default("N/A")
+  handoverApprovalStatus String @default("Installation Pending")
+
+  // Group 8 — Unit Type Selection
+  kitchenType  String?
+  wardrobeType String?
+  vanityType   String?
+  doorType     String?
+
+  auditLogs AuditLog[]
+}
+
+model AuditLog {
+  id          String    @id @default(uuid())
+  apartmentId String
+  apartment   Apartment @relation(fields: [apartmentId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  fieldName   String
+  oldValue    String?
+  newValue    String?
+  changedAt   DateTime  @default(now())
+}
+
+model BillingSetup {
+  id                     String                @id @default(uuid())
+  orderId                String                @unique
+  order                  Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  contractorRetentionPct Float                 @default(5.0)
+  contractorGSTPct       Float                 @default(18.0)
+  contractorTDSPct       Float                 @default(1.0)
+  clientRetentionPct     Float                 @default(5.0)
+  clientGSTPct           Float                 @default(18.0)
+  clientOtherDeduction   Float                 @default(0.0)
+  clientMatEligiblePct   Float                 @default(100.0)
+  clientExecEligiblePct  Float                 @default(100.0)
+  clientHandoverEligiblePct Float               @default(100.0)
+  billingPeriodFrom      DateTime?
+  billingPeriodTo        DateTime?
+  billDate               DateTime?
+  unitTypeRates          UnitTypeRate[]
+  contractorMilestones   ContractorMilestone[]
+  clientRAMilestones     ClientRAMilestone[]
+  towerClientRates       TowerClientRate[]
+}
+
+model UnitTypeRate {
+  id                  String               @id @default(uuid())
+  billingSetupId      String
+  billingSetup        BillingSetup         @relation(fields: [billingSetupId], references: [id], onDelete: Cascade)
+  typeCode            String               // e.g. K-Type 1, W-Type 1
+  product             String               // Kitchen, Wardrobe, Vanity
+  typeName            String
+  contractorRate      Float                @default(0.0)
+  clientRate          Float                @default(0.0)
+  includeInCurrentRA  Boolean              @default(true)
+  contractorBillLines ContractorBillLine[]
+  clientRABillLines   ClientRABillLine[]
+}
+
+model ContractorMilestone {
+  id             String       @id @default(uuid())
+  billingSetupId String
+  billingSetup   BillingSetup @relation(fields: [billingSetupId], references: [id], onDelete: Cascade)
+  product        String       // Kitchen, Wardrobe, Vanity
+  milestoneName  String       // e.g. Lower Carcasses Installed
+  percentage     Float        // e.g. 15.0
+}
+
+model ClientRAMilestone {
+  id             String       @id @default(uuid())
+  billingSetupId String
+  billingSetup   BillingSetup @relation(fields: [billingSetupId], references: [id], onDelete: Cascade)
+  product        String       // Kitchen, Wardrobe, Vanity
+  recognitionType String      // MATERIAL, EXECUTION, HANDOVER
+  milestoneName  String
+  fieldKey       String       // The field in Apartment that maps to this milestone (e.g. kitchenLowerCarcassInward)
+  percentage     Float
+}
+
+model TowerClientRate {
+  id             String       @id @default(uuid())
+  billingSetupId String
+  billingSetup   BillingSetup @relation(fields: [billingSetupId], references: [id], onDelete: Cascade)
+  buildingId     String
+  building       Building     @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  kitchenRate    Float        @default(0.0)
+  wardrobeRate   Float        @default(0.0)
+  vanityRate     Float        @default(0.0)
+  doorRate       Float        @default(0.0)
+
+  @@unique([billingSetupId, buildingId])
+}
+
+model ContractorBillLine {
+  id                     String       @id @default(uuid())
+  orderId                String
+  order                  Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  contractorName         String
+  unitTypeId             String
+  unitType               UnitTypeRate @relation(fields: [unitTypeId], references: [id], onDelete: Cascade)
+  eligibleUnitEquivalent Float?
+  previousCertified      Float?
+  otherDeduction         Float?
+  billNo                 String?
+  billDate               DateTime?
+  remarks                String?
+  createdAt              DateTime     @default(now())
+}
+
+model ClientRABillLine {
+  id                 String       @id @default(uuid())
+  orderId            String
+  order              Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  buildingId         String
+  building           Building     @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  unitTypeId         String
+  unitType           UnitTypeRate @relation(fields: [unitTypeId], references: [id], onDelete: Cascade)
+  includeInCurrentRA Boolean      @default(true)
+  previousCertified  Float?
+  otherDeduction     Float?
+  raBillNo           String?
+  raBillDate         DateTime?
+  remarks            String?
+  createdAt          DateTime     @default(now())
+
+  @@unique([orderId, buildingId, unitTypeId])
+}
